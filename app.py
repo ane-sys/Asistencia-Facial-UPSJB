@@ -67,6 +67,7 @@ def registrar_asistencia_db(nombre):
         conn = conectar_db()
         cursor = conn.cursor()
         fecha_hoy = datetime.now().strftime('%Y-%m-%d')
+        # Verificar duplicados para el mismo día
         cursor.execute("SELECT * FROM asistencia WHERE nombre=%s AND fecha_hora LIKE %s", (nombre, f"{fecha_hoy}%"))
         if cursor.fetchone() is None:
             ahora = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -79,7 +80,7 @@ def registrar_asistencia_db(nombre):
         conn.close()
         return False, "Ya registraste tu asistencia hoy."
     except:
-        return False, "Error de conexión con el servidor."
+        return False, "Error de conexión con el servidor de la base de datos."
 
 def entrenar_reconocedor():
     reconocedor = cv2.face.LBPHFaceRecognizer_create()
@@ -87,6 +88,7 @@ def entrenar_reconocedor():
     rostros, ids, mapa_nombres = [], [], {}
     archivos = [f for f in os.listdir(CARPETA_ROSTROS) if f.endswith(('.jpg', '.jpeg', '.png'))]
     if not archivos: return None, {}
+    
     for idx, archivo in enumerate(archivos):
         img = cv2.imread(os.path.join(CARPETA_ROSTROS, archivo), cv2.IMREAD_GRAYSCALE)
         mapa_nombres[idx] = os.path.splitext(archivo)[0].replace("_", " ")
@@ -94,6 +96,7 @@ def entrenar_reconocedor():
         for (x, y, w, h) in faces:
             rostros.append(img[y:y+h, x:x+w])
             ids.append(idx)
+            
     if not rostros: return None, {}
     reconocedor.train(rostros, np.array(ids))
     return reconocedor, mapa_nombres
@@ -137,24 +140,77 @@ if opcion == "Marcación de Asistencia":
             st.error("No se detectó ningún rostro.")
 
 elif opcion == "Registro de Alumno":
-    st.header("👤 Registro de Nuevo Estudiante")
-    nombre = st.text_input("Ingrese Nombres y Apellidos Completos:")
-    foto = st.file_uploader("Subir foto frontal nítida", type=["jpg", "png", "jpeg"])
+    st.header("👤 Gestión de Estudiantes")
     
-    # Envolver el botón en un contenedor con clase para aplicar estilo azul
-    st.markdown('<div class="blue-btn">', unsafe_allow_html=True)
-    guardar_btn = st.button("Guardar Datos del Estudiante")
-    st.markdown('</div>', unsafe_allow_html=True)
+    tab_registrar, tab_editar = st.tabs(["Registrar Nuevo Estudiante", "Editar Nombres / Apellidos"])
     
-    if guardar_btn:
-        if nombre and foto:
-            nombre_file = nombre.strip().replace(" ", "_") + ".jpg"
-            with open(os.path.join(CARPETA_ROSTROS, nombre_file), "wb") as f:
-                f.write(foto.getbuffer())
-            st.success(f"¡Registro completado para {nombre}!")
-            st.balloons()
+    with tab_registrar:
+        st.subheader("Registrar nuevo rostro")
+        nombre = st.text_input("Ingrese Nombres y Apellidos Completos:")
+        foto = st.file_uploader("Subir foto frontal nítida", type=["jpg", "png", "jpeg"])
+        
+        st.markdown('<div class="blue-btn">', unsafe_allow_html=True)
+        guardar_btn = st.button("Guardar Datos del Estudiante")
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+        if guardar_btn:
+            if nombre and foto:
+                nombre_file = nombre.strip().replace(" ", "_") + ".jpg"
+                with open(os.path.join(CARPETA_ROSTROS, nombre_file), "wb") as f:
+                    f.write(foto.getbuffer())
+                st.success(f"¡Registro completado para {nombre}!")
+                st.balloons()
+            else:
+                st.error("Por favor, completa el nombre y sube una foto.")
+                
+    with tab_editar:
+        st.subheader("Corregir o añadir apellidos a un estudiante")
+        st.write("Selecciona un alumno para actualizar su nombre en el sistema sin necesidad de subir una nueva foto.")
+        
+        archivos_rostros = [f for f in os.listdir(CARPETA_ROSTROS) if f.endswith(('.jpg', '.jpeg', '.png'))]
+        nombres_registrados = [os.path.splitext(f)[0].replace("_", " ") for f in archivos_rostros]
+        
+        if nombres_registrados:
+            alumno_seleccionado = st.selectbox("Seleccione el alumno a editar:", nombres_registrados)
+            nuevo_nombre = st.text_input("Escriba el nombre corregido (con nombres y apellidos):", value=alumno_seleccionado)
+            
+            st.markdown('<div class="blue-btn">', unsafe_allow_html=True)
+            actualizar_btn = st.button("Actualizar Nombre del Alumno")
+            st.markdown('</div>', unsafe_allow_html=True)
+            
+            if actualizar_btn:
+                if nuevo_nombre.strip() and nuevo_nombre != alumno_seleccionado:
+                    try:
+                        # Obtener extensión original del archivo
+                        idx_archivo = nombres_registrados.index(alumno_seleccionado)
+                        archivo_original = archivos_rostros[idx_archivo]
+                        extension_original = os.path.splitext(archivo_original)[1]
+                        
+                        # Generar nombres de archivos formateados
+                        path_original = os.path.join(CARPETA_ROSTROS, archivo_original)
+                        nuevo_nombre_archivo = nuevo_nombre.strip().replace(" ", "_") + extension_original
+                        path_nuevo = os.path.join(CARPETA_ROSTROS, nuevo_nombre_archivo)
+                        
+                        # 1. Renombrar el archivo físico de imagen
+                        os.rename(path_original, path_nuevo)
+                        
+                        # 2. Actualizar registros en la Base de Datos de Clever Cloud
+                        conn = conectar_db()
+                        cursor = conn.cursor()
+                        cursor.execute("UPDATE asistencia SET nombre = %s WHERE nombre = %s", (nuevo_nombre.strip(), alumno_seleccionado))
+                        conn.commit()
+                        cursor.close()
+                        conn.close()
+                        
+                        st.success(f"¡Se actualizó '{alumno_seleccionado}' a '{nuevo_nombre.strip()}' con éxito!")
+                        st.balloons()
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Error al actualizar: {e}")
+                else:
+                    st.warning("Por favor ingrese un nombre diferente para realizar la edición.")
         else:
-            st.error("Por favor, completa el nombre y sube una foto.")
+            st.info("No hay alumnos registrados actualmente para editar.")
 
 elif opcion == "Reportes Académicos":
     st.header("📊 Historial de Asistencia Estudiantil")
