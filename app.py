@@ -55,10 +55,11 @@ st.markdown("""
 
 def conectar_db():
     return mysql.connector.connect(
-        host="localhost",
-        user="root",
-        password="admin123",
-        database="asistencia"
+        host="bevdnvgkkduta9w5ixbk-mysql.services.clever-cloud.com",
+        user="ukgd0acstccmz2k9",
+        password="Q7yj6LmjeFhjiZ7IwiHP",
+        database="bevdnvgkkduta9w5ixbk",
+        port=3306
     )
 
 def registrar_asistencia_db(nombre):
