@@ -37,7 +37,7 @@ if opcion == "Marcación de Asistencia":
         alumnos_existentes = [os.path.splitext(f)[0] for f in os.listdir(CARPETA_ROSTROS) if f.endswith(('.jpg', '.png'))]
         
         if alumnos_existentes:
-            alumno_detectado = st.selectbox("Seleccione el alumno detectado (Simulación AI)", alumnos_existentes)
+            alumno_detectado = st.selectbox("Seleccione el alumno detectado", alumnos_existentes)
             
             if st.button("Confirmar Asistencia"):
                 try:
@@ -64,7 +64,7 @@ if opcion == "Marcación de Asistencia":
             st.info("No hay alumnos registrados en el sistema todavía.")
 
 elif opcion == "Registro de Alumno":
-    st.title("👤 Panel de Gestión de Estudiantes (CRUD)")
+    st.title("👤 Panel de Gestión de Estudiantes")
     
     tab1, tab2, tab3 = st.tabs(["🆕 Registrar Nuevo Alumno", "✏️ Editar Nombres / Apellidos", "❌ Eliminar Alumno"])
     
