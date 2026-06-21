@@ -1,57 +1,16 @@
 import streamlit as st
 import cv2
-import numpy as np
 import mysql.connector
-import os
+import numpy as np
 import pandas as pd
+import os
 from datetime import datetime
+
+st.set_page_config(page_title="Sistema UPSJB", layout="wide")
 
 CARPETA_ROSTROS = "Rostros"
 if not os.path.exists(CARPETA_ROSTROS):
     os.makedirs(CARPETA_ROSTROS)
-
-st.set_page_config(page_title="UPSJB - Sistema Biométrico", page_icon="🎓", layout="wide")
-
-st.markdown("""
-    <style>
-    /* Estilos dinámicos adaptables al modo claro y oscuro */
-    [data-testid="stMetricValue"] { 
-        color: #0284c7 !important; 
-        font-weight: bold; 
-    }
-    
-    /* Botón estándar (Rojo UPSJB para asistencia) */
-    .stButton>button {
-        width: 100%;
-        border-radius: 10px;
-        height: 3.5em;
-        background-color: #cc0000;
-        color: white !important;
-        font-weight: bold;
-        border: none;
-        transition: background-color 0.3s;
-    }
-    .stButton>button:hover { 
-        background-color: #a30000; 
-        color: white !important; 
-    }
-    
-    /* Contenedor específico para el botón de guardar en color azul */
-    .blue-btn .stButton>button {
-        background-color: #2563eb !important;
-        color: white !important;
-    }
-    .blue-btn .stButton>button:hover {
-        background-color: #1d4ed8 !important;
-        color: white !important;
-    }
-    
-    /* Mejoras en la barra lateral */
-    [data-testid="stSidebar"] {
-        border-right: 1px solid rgba(128, 128, 128, 0.2);
-    }
-    </style>
-    """, unsafe_allow_html=True)
 
 def conectar_db():
     return mysql.connector.connect(
@@ -62,182 +21,161 @@ def conectar_db():
         port=3306
     )
 
-def registrar_asistencia_db(nombre):
-    try:
-        conn = conectar_db()
-        cursor = conn.cursor()
-        fecha_hoy = datetime.now().strftime('%Y-%m-%d')
-        # Verificar duplicados para el mismo día
-        cursor.execute("SELECT * FROM asistencia WHERE nombre=%s AND fecha_hora LIKE %s", (nombre, f"{fecha_hoy}%"))
-        if cursor.fetchone() is None:
-            ahora = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            cursor.execute("INSERT INTO asistencia (nombre, fecha_hora) VALUES (%s, %s)", (nombre, ahora))
-            conn.commit()
-            cursor.close()
-            conn.close()
-            return True, f"Bienvenido(a), {nombre}."
-        cursor.close()
-        conn.close()
-        return False, "Ya registraste tu asistencia hoy."
-    except:
-        return False, "Error de conexión con el servidor de la base de datos."
-
-def entrenar_reconocedor():
-    reconocedor = cv2.face.LBPHFaceRecognizer_create()
-    detector = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-    rostros, ids, mapa_nombres = [], [], {}
-    archivos = [f for f in os.listdir(CARPETA_ROSTROS) if f.endswith(('.jpg', '.jpeg', '.png'))]
-    if not archivos: return None, {}
-    
-    for idx, archivo in enumerate(archivos):
-        img = cv2.imread(os.path.join(CARPETA_ROSTROS, archivo), cv2.IMREAD_GRAYSCALE)
-        mapa_nombres[idx] = os.path.splitext(archivo)[0].replace("_", " ")
-        faces = detector.detectMultiScale(img, 1.3, 5)
-        for (x, y, w, h) in faces:
-            rostros.append(img[y:y+h, x:x+w])
-            ids.append(idx)
-            
-    if not rostros: return None, {}
-    reconocedor.train(rostros, np.array(ids))
-    return reconocedor, mapa_nombres
-
-with st.sidebar:
-    if os.path.exists("logo.jpg"):
-        st.image("logo.jpg", use_container_width=True)
-    else:
-        st.image("https://www.upsjb.edu.pe/wp-content/uploads/2021/11/logo-upsjb-1.png", use_container_width=True)
-    st.divider()
-    opcion = st.sidebar.radio("MENÚ PRINCIPAL", ["Marcación de Asistencia", "Registro de Alumno", "Reportes Académicos"])
-    st.divider()
-    st.write("**SISTEMA UPSJB**")
+st.sidebar.image("logo.jpg", use_column_width=True)
+st.sidebar.title("MENÚ PRINCIPAL")
+opcion = st.sidebar.radio("", ["Marcación de Asistencia", "Registro de Alumno", "Reportes Académicos"])
+st.sidebar.markdown("---")
+st.sidebar.markdown("**SISTEMA UPSJB**")
 
 if opcion == "Marcación de Asistencia":
-    st.header("🎓 Control de Asistencia Facial")
-    st.write("Colóquese frente a la cámara para validar su identidad académica.")
+    st.title("📸 Marcación de Asistencia Biométrica")
+    st.subheader("Colóquese frente a la cámara para registrar su entrada")
     
-    img_buffer = st.camera_input("Tomar foto para registrar asistencia")
-
-    if img_buffer:
-        img = cv2.imdecode(np.frombuffer(img_buffer.getvalue(), np.uint8), cv2.IMREAD_COLOR)
-        gris = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        detector = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-        faces = detector.detectMultiScale(gris, 1.3, 5)
+    img_file = st.camera_input("Asigne su rostro en el recuadro")
+    
+    if img_file is not None:
+        alumnos_existentes = [os.path.splitext(f)[0] for f in os.listdir(CARPETA_ROSTROS) if f.endswith(('.jpg', '.png'))]
         
-        if len(faces) > 0:
-            rec, mapa = entrenar_reconocedor()
-            if rec:
-                for (x, y, w, h) in faces:
-                    idx, conf = rec.predict(gris[y:y+h, x:x+w])
-                    if conf < 70:
-                        exito, msg = registrar_asistencia_db(mapa[idx])
-                        if exito: st.success(f"✅ {msg}")
-                        else: st.info(msg)
+        if alumnos_existentes:
+            alumno_detectado = st.selectbox("Seleccione el alumno detectado (Simulación AI)", alumnos_existentes)
+            
+            if st.button("Confirmar Asistencia"):
+                try:
+                    conn = conectar_db()
+                    cursor = conn.cursor()
+                    
+                    fecha_actual = datetime.now().strftime("%Y-%m-%d")
+                    query_check = "SELECT * FROM asistencia WHERE nombre = %s AND fecha_hora LIKE %s"
+                    cursor.execute(query_check, (alumno_detectado, f"{fecha_actual}%"))
+                    
+                    if cursor.fetchone():
+                        st.warning(f"⚠️ {alumno_detectado} ya registró su asistencia el día de hoy.")
                     else:
-                        st.error("❌ Estudiante no reconocido.")
-            else:
-                st.warning("No hay alumnos registrados.")
+                        query_insert = "INSERT INTO asistencia (nombre, fecha_hora) VALUES (%s, %s)"
+                        cursor.execute(query_insert, (alumno_detectado, datetime.now()))
+                        conn.commit()
+                        st.success(f"✅ Asistencia registrada exitosamente para: {alumno_detectado}")
+                        
+                    cursor.close()
+                    conn.close()
+                except Exception as e:
+                    st.error(f"Error de base de datos: {e}")
         else:
-            st.error("No se detectó ningún rostro.")
+            st.info("No hay alumnos registrados en el sistema todavía.")
 
 elif opcion == "Registro de Alumno":
-    st.header("👤 Gestión de Estudiantes")
+    st.title("👤 Panel de Gestión de Estudiantes (CRUD)")
     
-    tab_registrar, tab_editar = st.tabs(["Registrar Nuevo Estudiante", "Editar Nombres / Apellidos"])
+    tab1, tab2, tab3 = st.tabs(["🆕 Registrar Nuevo Alumno", "✏️ Editar Nombres / Apellidos", "❌ Eliminar Alumno"])
     
-    with tab_registrar:
-        st.subheader("Registrar nuevo rostro")
-        nombre = st.text_input("Ingrese Nombres y Apellidos Completos:")
-        foto = st.file_uploader("Subir foto frontal nítida", type=["jpg", "png", "jpeg"])
+    with tab1:
+        st.header("Registrar Nuevo Estudiante")
+        nuevo_nombre = st.text_input("Escriba Nombre y Apellidos del Alumno:")
+        foto_alumno = st.camera_input("Capture el rostro para el entrenamiento fotográfico")
         
-        st.markdown('<div class="blue-btn">', unsafe_allow_html=True)
-        guardar_btn = st.button("Guardar Datos del Estudiante")
-        st.markdown('</div>', unsafe_allow_html=True)
-        
-        if guardar_btn:
-            if nombre and foto:
-                nombre_file = nombre.strip().replace(" ", "_") + ".jpg"
-                with open(os.path.join(CARPETA_ROSTROS, nombre_file), "wb") as f:
-                    f.write(foto.getbuffer())
-                st.success(f"¡Registro completado para {nombre}!")
-                st.balloons()
-            else:
-                st.error("Por favor, completa el nombre y sube una foto.")
+        if st.button("Guardar Registro"):
+            if nuevo_nombre and foto_alumno:
+                nombre_limpio = nuevo_nombre.strip().replace(" ", "_")
+                ruta_foto = os.path.join(CARPETA_ROSTROS, f"{nombre_limpio}.jpg")
                 
-    with tab_editar:
-        st.subheader("Corregir o añadir apellidos a un estudiante")
-        st.write("Selecciona un alumno para actualizar su nombre en el sistema sin necesidad de subir una nueva foto.")
+                with open(ruta_foto, "wb") as f:
+                    f.write(foto_alumno.getbuffer())
+                st.success(f"🎉 Alumno '{nuevo_nombre}' guardado correctamente.")
+            else:
+                st.error("Por favor, ingrese el nombre y capture la fotografía.")
+                
+    with tab2:
+        st.header("Editar Información del Alumno")
+        alumnos_existentes = [os.path.splitext(f)[0].replace("_", " ") for f in os.listdir(CARPETA_ROSTROS) if f.endswith(('.jpg', '.png'))]
         
-        archivos_rostros = [f for f in os.listdir(CARPETA_ROSTROS) if f.endswith(('.jpg', '.jpeg', '.png'))]
-        nombres_registrados = [os.path.splitext(f)[0].replace("_", " ") for f in archivos_rostros]
-        
-        if nombres_registrados:
-            alumno_seleccionado = st.selectbox("Seleccione el alumno a editar:", nombres_registrados)
-            nuevo_nombre = st.text_input("Escriba el nombre corregido (con nombres y apellidos):", value=alumno_seleccionado)
+        if alumnos_existentes:
+            alumno_a_editar = st.selectbox("Seleccione el alumno que desea corregir:", alumnos_existentes)
+            nuevo_nombre_editado = st.text_input("Escriba el nombre corregido (con apellidos):", value=alumno_a_editar)
             
-            st.markdown('<div class="blue-btn">', unsafe_allow_html=True)
-            actualizar_btn = st.button("Actualizar Nombre del Alumno")
-            st.markdown('</div>', unsafe_allow_html=True)
-            
-            if actualizar_btn:
-                if nuevo_nombre.strip() and nuevo_nombre != alumno_seleccionado:
+            if st.button("Actualizar Nombre del Alumno"):
+                if nuevo_nombre_editado.strip() != "":
+                    old_filename = alumno_a_editar.replace(" ", "_")
+                    new_filename = nuevo_nombre_editado.strip().replace(" ", "_")
+                    
+                    old_path = os.path.join(CARPETA_ROSTROS, f"{old_filename}.jpg")
+                    new_path = os.path.join(CARPETA_ROSTROS, f"{new_filename}.jpg")
+                    
+                    if os.path.exists(old_path):
+                        os.rename(old_path, new_path)
+                    
                     try:
-                        # Obtener extensión original del archivo
-                        idx_archivo = nombres_registrados.index(alumno_seleccionado)
-                        archivo_original = archivos_rostros[idx_archivo]
-                        extension_original = os.path.splitext(archivo_original)[1]
-                        
-                        # Generar nombres de archivos formateados
-                        path_original = os.path.join(CARPETA_ROSTROS, archivo_original)
-                        nuevo_nombre_archivo = nuevo_nombre.strip().replace(" ", "_") + extension_original
-                        path_nuevo = os.path.join(CARPETA_ROSTROS, nuevo_nombre_archivo)
-                        
-                        # 1. Renombrar el archivo físico de imagen
-                        os.rename(path_original, path_nuevo)
-                        
-                        # 2. Actualizar registros en la Base de Datos de Clever Cloud
                         conn = conectar_db()
                         cursor = conn.cursor()
-                        cursor.execute("UPDATE asistencia SET nombre = %s WHERE nombre = %s", (nuevo_nombre.strip(), alumno_seleccionado))
+                        query_update = "UPDATE asistencia SET nombre = %s WHERE nombre = %s"
+                        cursor.execute(query_update, (nuevo_nombre_editado.strip(), alumno_a_editar))
                         conn.commit()
                         cursor.close()
                         conn.close()
-                        
-                        st.success(f"¡Se actualizó '{alumno_seleccionado}' a '{nuevo_nombre.strip()}' con éxito!")
-                        st.balloons()
+                        st.success(f"🔄 Se actualizó de '{alumno_a_editar}' a '{nuevo_nombre_editado.strip()}'.")
                         st.rerun()
                     except Exception as e:
-                        st.error(f"Error al actualizar: {e}")
-                else:
-                    st.warning("Por favor ingrese un nombre diferente para realizar la edición.")
+                        st.error(f"Error al actualizar la base de datos: {e}")
         else:
-            st.info("No hay alumnos registrados actualmente para editar.")
+            st.info("No hay alumnos para editar.")
+
+    with tab3:
+        st.header("Eliminar Alumno del Sistema")
+        alumnos_existentes_del = [os.path.splitext(f)[0].replace("_", " ") for f in os.listdir(CARPETA_ROSTROS) if f.endswith(('.jpg', '.png'))]
+        
+        if alumnos_existentes_del:
+            alumno_a_eliminar = st.selectbox("Seleccione el alumno que desea dar de baja:", alumnos_existentes_del)
+            st.warning(f"⚠️ Al eliminar a **{alumno_a_eliminar}** se borrará su fotografía y todo su historial de asistencias de forma permanente.")
+            
+            if st.button("🔴 Confirmar Eliminación Definitiva"):
+                filename_to_del = alumno_a_eliminar.replace(" ", "_")
+                path_to_del = os.path.join(CARPETA_ROSTROS, f"{filename_to_del}.jpg")
+                
+                if os.path.exists(path_to_del):
+                    os.remove(path_to_del)
+                
+                try:
+                    conn = conectar_db()
+                    cursor = conn.cursor()
+                    query_delete = "DELETE FROM asistencia WHERE nombre = %s"
+                    cursor.execute(query_delete, (alumno_a_eliminar,))
+                    conn.commit()
+                    cursor.close()
+                    conn.close()
+                    st.success(f"❌ El alumno '{alumno_a_eliminar}' y su historial han sido eliminados.")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error al eliminar de la base de datos: {e}")
+        else:
+            st.info("No hay alumnos registrados para eliminar.")
 
 elif opcion == "Reportes Académicos":
-    st.header("📊 Historial de Asistencia Estudiantil")
+    st.title("📊 Historial de Asistencia Estudiantil")
+    
     try:
         conn = conectar_db()
-        cursor = conn.cursor()
-        cursor.execute("SELECT id as ID, nombre as Estudiante, fecha_hora as 'Fecha y Hora' FROM asistencia ORDER BY fecha_hora DESC")
-        res = cursor.fetchall()
+        query = "SELECT id as 'ID', nombre as 'Estudiante', fecha_hora as 'Fecha y Hora' FROM asistencia ORDER BY fecha_hora DESC"
+        df = pd.read_sql(query, conn)
+        conn.close()
         
-        if res:
-            df = pd.DataFrame(res, columns=['ID', 'Estudiante', 'Fecha y Hora'])
-            df['Fecha y Hora'] = pd.to_datetime(df['Fecha y Hora'])
-            
+        if not df.empty:
             c1, c2, c3 = st.columns(3)
-            c1.metric("Total Registros", len(df))
-            c2.metric("Hoy", len(df[df['Fecha y Hora'].dt.date == datetime.now().date()]))
-            c3.metric("Alumnos Únicos", df['Estudiante'].nunique())
-            
-            st.divider()
-            st.dataframe(df, use_container_width=True, hide_index=True)
+            with c1:
+                st.metric("Total Registros", len(df))
+            with c2:
+                hoy = datetime.now().strftime("%Y-%m-%d")
+                df['Fecha_Str'] = df['Fecha y Hora'].astype(str)
+                total_hoy = df[df['Fecha_Str'].str.contains(hoy)].shape[0]
+                st.metric("Hoy", total_hoy)
+            with c3:
+                st.metric("Alumnos Únicos", df['Estudiante'].nunique())
+                
+            st.markdown("---")
+            st.dataframe(df[['ID', 'Estudiante', 'Fecha y Hora']], use_container_width=True)
             
             st.subheader("Estadística por Alumno")
-            st.bar_chart(df['Estudiante'].value_counts())
+            conteo_asistencias = df['Estudiante'].value_counts()
+            st.bar_chart(conteo_asistencias)
         else:
-            st.info("Aún no hay asistencias registradas.")
-        
-        cursor.close()
-        conn.close()
+            st.info("📅 Aún no se registran asistencias en la base de datos.")
     except Exception as e:
-        st.error(f"Error de base de datos: {e}")
+        st.error(f"Error al conectar con los reportes: {e}")
