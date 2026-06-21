@@ -37,7 +37,7 @@ if opcion == "Marcación de Asistencia":
         alumnos_existentes = [os.path.splitext(f)[0] for f in os.listdir(CARPETA_ROSTROS) if f.endswith(('.jpg', '.png'))]
         
         if alumnos_existentes:
-            alumno_detectado = st.selectbox("Seleccione el alumno detectado", alumnos_existentes)
+            alumno_detectado = st.selectbox("Seleccione el alumno detectado (Simulación AI)", alumnos_existentes)
             
             if st.button("Confirmar Asistencia"):
                 try:
@@ -64,14 +64,15 @@ if opcion == "Marcación de Asistencia":
             st.info("No hay alumnos registrados en el sistema todavía.")
 
 elif opcion == "Registro de Alumno":
-    st.title("👤 Panel de Gestión de Estudiantes")
+    st.title("👤 Panel de Gestión de Estudiantes (CRUD)")
     
     tab1, tab2, tab3 = st.tabs(["🆕 Registrar Nuevo Alumno", "✏️ Editar Nombres / Apellidos", "❌ Eliminar Alumno"])
     
     with tab1:
         st.header("Registrar Nuevo Estudiante")
         nuevo_nombre = st.text_input("Escriba Nombre y Apellidos del Alumno:")
-        foto_alumno = st.camera_input("Capture el rostro para el entrenamiento fotográfico")
+        
+        foto_alumno = st.camera_input("Capture el rostro del alumno para el registro:")
         
         if st.button("Guardar Registro"):
             if nuevo_nombre and foto_alumno:
@@ -81,8 +82,9 @@ elif opcion == "Registro de Alumno":
                 with open(ruta_foto, "wb") as f:
                     f.write(foto_alumno.getbuffer())
                 st.success(f"🎉 Alumno '{nuevo_nombre}' guardado correctamente.")
+                st.rerun()
             else:
-                st.error("Por favor, ingrese el nombre y capture la fotografía.")
+                st.error("Por favor, ingrese el nombre y capture la fotografía con la cámara.")
                 
     with tab2:
         st.header("Editar Información del Alumno")
