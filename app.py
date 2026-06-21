@@ -105,7 +105,7 @@ with st.sidebar:
     st.divider()
     opcion = st.sidebar.radio("MENÚ PRINCIPAL", ["Marcación de Asistencia", "Registro de Alumno", "Reportes Académicos"])
     st.divider()
-    st.write("**SISTEMA UPSJB v2.5**")
+    st.write("**SISTEMA UPSJB**")
 
 if opcion == "Marcación de Asistencia":
     st.header("🎓 Control de Asistencia Facial")
