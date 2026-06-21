@@ -72,7 +72,7 @@ elif opcion == "Registro de Alumno":
         st.header("Registrar Nuevo Estudiante")
         nuevo_nombre = st.text_input("Escriba Nombre y Apellidos del Alumno:")
         
-        foto_alumno = st.camera_input("Capture el rostro del alumno para el registro:")
+        foto_alumno = st.file_uploader("Cargar foto del estudiante:", type=["jpg", "jpeg", "png"])
         
         if st.button("Guardar Registro"):
             if nuevo_nombre and foto_alumno:
@@ -84,7 +84,7 @@ elif opcion == "Registro de Alumno":
                 st.success(f"🎉 Alumno '{nuevo_nombre}' guardado correctamente.")
                 st.rerun()
             else:
-                st.error("Por favor, ingrese el nombre y capture la fotografía con la cámara.")
+                st.error("Por favor, ingrese el nombre y cargue la fotografía.")
                 
     with tab2:
         st.header("Editar Información del Alumno")
